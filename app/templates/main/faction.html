@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+
+{% block title %}{{ faction.name }}{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">{{ faction.name }}</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Ресурсы:</h6>
+                        <ul class="list-unstyled">
+                            <li><img src="/static/assets/resources/Золото.svg" alt="gold" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Золото: {{ faction.gold }}/{{ faction.max_gold }}</li>
+                            <li><img src="/static/assets/resources/Дерево.svg" alt="wood" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Дерево: {{ faction.wood }}/{{ faction.max_wood }}</li>
+                            <li><img src="/static/assets/resources/Камень.svg" alt="stone" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Камень: {{ faction.stone }}/{{ faction.max_stone }}</li>
+                            <li><img src="/static/assets/resources/Руда.svg" alt="ore" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Руда: {{ faction.ore }}/{{ faction.max_ore }}</li>
+                            <li><img src="/static/assets/resources/Воины.svg" alt="warriors" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Воины: {{ faction.warriors }}/{{ faction.max_warriors }}</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Прирост за ход:</h6>
+                        <ul class="list-unstyled">
+                            {% set warriors_sent = namespace(value=0) %}
+                            {% set warriors_defending = namespace(value=0) %}
+                            
+                            {% for action in actions %}
+                                {% if action.action_type == 'capture_cell' and action.warriors %}
+                                    {% set warriors_sent.value = warriors_sent.value + action.warriors %}
+                                {% elif action.action_type == 'defend_cell' and action.warriors %}
+                                    {% set warriors_defending.value = warriors_defending.value + action.warriors %}
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% set total_warriors = faction.warriors + warriors_sent.value + warriors_defending.value %}
+                            
+                            {% set gold_income = 1 %}
+                            {% set wood_income = namespace(value=3) %}
+                            {% set stone_income = namespace(value=3) %}
+                            {% set ore_income = namespace(value=3) %}
+                            
+                            {% for cell in faction.cells %}
+                                {% if cell.building and cell.building.type.value == 'castle' %}
+                                    {% set gold_income = gold_income + cell.building.get_production().get('gold', 0) %}
+                                {% endif %}
+                                
+                                {% if cell.building %}
+                                    {% if cell.building.type.value == 'sawmill' %}
+                                        {% set wood_income.value = wood_income.value + cell.building.get_production()['wood'] %}
+                                    {% elif cell.building.type.value == 'quarry' %}
+                                        {% set stone_income.value = stone_income.value + cell.building.get_production()['stone'] %}
+                                    {% elif cell.building.type.value == 'mine' %}
+                                        {% set ore_income.value = ore_income.value + cell.building.get_production()['ore'] %}
+                                    {% endif %}
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% set gold_income = gold_income + faction.cells|length %}
+                            {% set gold_expenses = total_warriors %}
+                            
+                            {% set gold_bonus = namespace(value=0) %}
+                            {% set wood_bonus = namespace(value=0) %}
+                            {% set stone_bonus = namespace(value=0) %}
+                            {% set ore_bonus = namespace(value=0) %}
+                            {% set warriors_bonus = namespace(value=0) %}
+                            
+                            {% for cell in faction.cells %}
+                                {% if cell.x == 1 and cell.y == 3 %}
+                                    {% set gold_bonus.value = (gold_income * 0.2)|int %}
+                                {% endif %}
+                                {% if cell.x == 3 and cell.y == 1 %}
+                                    {% set wood_bonus.value = (wood_income.value * 0.2)|int %}
+                                {% endif %}
+                                {% if cell.x == 5 and cell.y == 3 %}
+                                    {% set stone_bonus.value = (stone_income.value * 0.2)|int %}
+                                {% endif %}
+                                {% if cell.x == 3 and cell.y == 5 %}
+                                    {% set ore_bonus.value = (ore_income.value * 0.2)|int %}
+                                {% endif %}
+                                {% if cell.x == 3 and cell.y == 3 %}
+                                    {% set warriors_bonus.value = (total_warriors * 0.2)|int %}
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% set total_gold_income = gold_income + gold_bonus.value %}
+                            {% set net_gold_income = total_gold_income - gold_expenses %}
+                            
+                            {% set total_wood_income = wood_income.value + wood_bonus.value %}
+                            {% set total_stone_income = stone_income.value + stone_bonus.value %}
+                            {% set total_ore_income = ore_income.value + ore_bonus.value %}
+                            
+                            <li><img src="/static/assets/resources/Золото.svg" alt="gold" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Золото: 
+                                {% if net_gold_income > 0 %}+{% endif %}{{ net_gold_income }} 
+                                (доход: +{{ gold_income }}{% if gold_bonus.value > 0 %} + бонус: +{{ gold_bonus.value }}{% endif %}, расход: -{{ gold_expenses }})
+                            </li>
+                            <li><img src="/static/assets/resources/Дерево.svg" alt="wood" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Дерево: +{{ total_wood_income }}{% if wood_bonus.value > 0 %} (базовый: +{{ wood_income.value }}, бонус: +{{ wood_bonus.value }}){% endif %}</li>
+                            <li><img src="/static/assets/resources/Камень.svg" alt="stone" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Камень: +{{ total_stone_income }}{% if stone_bonus.value > 0 %} (базовый: +{{ stone_income.value }}, бонус: +{{ stone_bonus.value }}){% endif %}</li>
+                            <li><img src="/static/assets/resources/Руда.svg" alt="ore" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Руда: +{{ total_ore_income }}{% if ore_bonus.value > 0 %} (базовый: +{{ ore_income.value }}, бонус: +{{ ore_bonus.value }}){% endif %}</li>
+                            <li><img src="/static/assets/resources/Воины.svg" alt="warriors" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Воины: {{ faction.warriors }}/{{ faction.max_warriors }}{% if warriors_bonus.value > 0 %} (бонус: +{{ warriors_bonus.value }} к максимуму){% endif %}</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <h6>Расходы за ход:</h6>
+                        <ul class="list-unstyled">
+                            {% set warriors_sent = namespace(value=0) %}
+                            {% set warriors_defending = namespace(value=0) %}
+                            
+                            {% for action in actions %}
+                                {% if action.action_type == 'capture_cell' and action.warriors %}
+                                    {% set warriors_sent.value = warriors_sent.value + action.warriors %}
+                                {% elif action.action_type == 'defend_cell' and action.warriors %}
+                                    {% set warriors_defending.value = warriors_defending.value + action.warriors %}
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% set total_warriors = faction.warriors + warriors_sent.value + warriors_defending.value %}
+                            
+                            <li style="color: {% if total_warriors > 0 %}red{% else %}inherit{% endif %}">
+                                <img src="/static/assets/resources/Золото.svg" alt="gold" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Содержание воинов: -{{ total_warriors }} золота ({{ total_warriors }} воинов × 1 золото)
+                            </li>
+                            
+                            <li class="small text-muted mt-2">
+                                Включая:
+                                <ul>
+                                    <li>{{ faction.warriors }} воинов в резерве</li>
+                                    {% if warriors_sent.value > 0 %}
+                                    <li>{{ warriors_sent.value }} воинов, отправленных на захват</li>
+                                    {% endif %}
+                                    {% if warriors_defending.value > 0 %}
+                                    <li>{{ warriors_defending.value }} воинов, отправленных на защиту</li>
+                                    {% endif %}
+                                </ul>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Территории и постройки</h5>
+            </div>
+            <div class="card-body">
+                {% set cells_with_buildings = [] %}
+                {% set cells_without_buildings = [] %}
+                {% set cells_with_resource_bonus = [] %}
+                
+                {% for cell in faction.cells %}
+                    {% if cell.building %}
+                        {% set _ = cells_with_buildings.append(cell) %}
+                    {% else %}
+                        {% set _ = cells_without_buildings.append(cell) %}
+                    {% endif %}
+                    
+                    {% if (cell.x == 1 and cell.y == 3) or (cell.x == 3 and cell.y == 1) or (cell.x == 3 and cell.y == 5) or (cell.x == 5 and cell.y == 3) or (cell.x == 3 and cell.y == 3) %}
+                        {% set _ = cells_with_resource_bonus.append(cell) %}
+                    {% endif %}
+                {% endfor %}
+                
+                <p>Всего территорий: <strong>{{ faction.cells|length }}</strong>, из них:</p>
+                <ul>
+                    <li>С постройками: <strong>{{ cells_with_buildings|length }}</strong></li>
+                    <li>Без построек: <strong>{{ cells_without_buildings|length }}</strong></li>
+                </ul>
+                
+                {% if cells_with_buildings %}
+                <h6 class="mt-3">Клетки с постройками:</h6>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Координаты</th>
+                                <th>Постройка</th>
+                                <th>Уровень</th>
+                                <th>Производство</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cell in cells_with_buildings %}
+                            <tr>
+                                <td>({{ cell.x }}, {{ cell.y }})</td>
+                                <td>
+                                    {% if cell.building.type.value == 'castle' %}<img src="/static/assets/buildings/Замок.svg" alt="castle" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Замок
+                                    {% elif cell.building.type.value == 'sawmill' %}<img src="/static/assets/buildings/Лесопилка.svg" alt="sawmill" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Лесопилка
+                                    {% elif cell.building.type.value == 'mine' %}<img src="/static/assets/buildings/Шахта.svg" alt="mine" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Шахта
+                                    {% elif cell.building.type.value == 'quarry' %}<img src="/static/assets/buildings/Карьер.svg" alt="quarry" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Карьер
+                                    {% elif cell.building.type.value == 'warehouse' %}<img src="/static/assets/buildings/Склад.svg" alt="warehouse" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Склад
+                                    {% elif cell.building.type.value == 'barracks' %}<img src="/static/assets/buildings/Казармы.svg" alt="barracks" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Казарма
+                                    {% endif %}
+                                </td>
+                                <td>{{ cell.building.level }}</td>
+                                <td>
+                                    {% if cell.building.type.value == 'castle' %}
+                                        -
+                                    {% elif cell.building.type.value == 'sawmill' %}
+                                        +{{ cell.building.get_production()['wood'] }} <img src="/static/assets/resources/Дерево.svg" alt="wood" style="width: 16px; height: 16px; vertical-align: middle;">
+                                    {% elif cell.building.type.value == 'mine' %}
+                                        +{{ cell.building.get_production()['ore'] }} <img src="/static/assets/resources/Руда.svg" alt="ore" style="width: 16px; height: 16px; vertical-align: middle;">
+                                    {% elif cell.building.type.value == 'quarry' %}
+                                        +{{ cell.building.get_production()['stone'] }} <img src="/static/assets/resources/Камень.svg" alt="stone" style="width: 16px; height: 16px; vertical-align: middle;">
+                                    {% elif cell.building.type.value == 'warehouse' %}
+                                        +{{ cell.building.get_storage_bonus() }} к хранилищу
+                                    {% elif cell.building.type.value == 'barracks' %}
+                                        +{{ cell.building.get_warrior_capacity() }} к войску
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="mt-3">У фракции нет построек.</p>
+                {% endif %}
+                
+                {% if cells_with_resource_bonus %}
+                <h6 class="mt-3">Клетки с бонусами к ресурсам:</h6>
+                <div class="table-responsive">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Координаты</th>
+                                <th>Тип бонуса</th>
+                                <th>Значение</th>
+                                <th>Постройка</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for cell in cells_with_resource_bonus %}
+                            <tr>
+                                <td>({{ cell.x }}, {{ cell.y }})</td>
+                                <td>
+                                    {% if cell.x == 1 and cell.y == 3 %}
+                                        <img src="/static/assets/resources/Золото.svg" alt="gold" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Золото
+                                    {% elif cell.x == 3 and cell.y == 1 %}
+                                        <img src="/static/assets/resources/Дерево.svg" alt="wood" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Дерево
+                                    {% elif cell.x == 3 and cell.y == 5 %}
+                                        <img src="/static/assets/resources/Руда.svg" alt="ore" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Руда
+                                    {% elif cell.x == 5 and cell.y == 3 %}
+                                        <img src="/static/assets/resources/Камень.svg" alt="stone" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Камень
+                                    {% elif cell.x == 3 and cell.y == 3 %}
+                                        <img src="/static/assets/resources/Воины.svg" alt="warriors" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Воины
+                                    {% endif %}
+                                </td>
+                                <td>+20%</td>
+                                <td>
+                                    {% if cell.building %}
+                                        {% if cell.building.type.value == 'castle' %}<img src="/static/assets/buildings/Замок.svg" alt="castle" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Замок
+                                        {% elif cell.building.type.value == 'sawmill' %}<img src="/static/assets/buildings/Лесопилка.svg" alt="sawmill" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Лесопилка
+                                        {% elif cell.building.type.value == 'mine' %}<img src="/static/assets/buildings/Шахта.svg" alt="mine" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Шахта
+                                        {% elif cell.building.type.value == 'quarry' %}<img src="/static/assets/buildings/Карьер.svg" alt="quarry" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Карьер
+                                        {% elif cell.building.type.value == 'warehouse' %}<img src="/static/assets/buildings/Склад.svg" alt="warehouse" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Склад
+                                        {% elif cell.building.type.value == 'barracks' %}<img src="/static/assets/buildings/Казармы.svg" alt="barracks" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Казарма
+                                        {% endif %}
+                                        (уровень {{ cell.building.level }})
+                                    {% else %}
+                                        <span class="text-muted">Нет</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="card-title mb-0">Участники фракции</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group">
+                    {% for user in faction.users %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ user.username }}
+                        {% if user.is_admin %}
+                        <span class="badge bg-primary">Админ</span>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальные окна для управления фракцией -->
+{% if current_user.is_admin and faction.id == current_user.faction_id %}
+<div class="modal fade" id="inviteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Пригласить игрока</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="invite-form">
+                    <div class="mb-3">
+                        <label class="form-label">Email игрока:</label>
+                        <input type="email" class="form-control" name="email" required>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="confirm-invite">Пригласить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="kickModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Исключить игрока</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="kick-form">
+                    <div class="mb-3">
+                        <label class="form-label">Выберите игрока:</label>
+                        <select class="form-select" name="user_id" required>
+                            {% for user in faction.users %}
+                            {% if not user.is_admin %}
+                            <option value="{{ user.id }}">{{ user.username }}</option>
+                            {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" id="confirm-kick">Исключить</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %} 

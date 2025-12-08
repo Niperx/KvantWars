@@ -1,0 +1,372 @@
+.game-map {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px;
+    background-color: #f0f0f0;
+    border-radius: 5px;
+    margin: 0 auto; /* Центрирование карты */
+    max-width: 100%; /* Обеспечение адаптивности */
+}
+
+.map-row {
+    display: flex;
+    gap: 2px;
+    justify-content: center; /* Центрирование строк */
+}
+
+.map-cell {
+    width: 70px;
+    height: 70px;
+    border: 2px solid #ccc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.map-cell:hover {
+    transform: scale(1.05);
+    z-index: 10;
+    box-shadow: 0 0 10px rgba(0,0,0,0.2);
+}
+
+.building-icon {
+    font-size: 24px;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.building-icon i {
+    filter: drop-shadow(1px 1px 1px rgba(0,0,0,0.5));
+}
+
+/* Стили для кнопок действий */
+.action-buttons {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    display: none;
+    z-index: 10; /* Обеспечиваем отображение поверх других элементов */
+}
+
+.map-cell:hover .action-buttons {
+    display: flex;
+    flex-direction: column;
+}
+
+.action-btn {
+    width: 24px; /* Увеличиваем размер кнопок */
+    height: 24px; /* Увеличиваем размер кнопок */
+    font-size: 12px; /* Увеличиваем размер шрифта */
+    padding: 0;
+    margin: 2px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 3px rgba(0,0,0,0.5); /* Добавляем тень для лучшей видимости */
+}
+
+/* Стили для отображения голосований */
+.voting-overlay {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 10px;
+    z-index: 3;
+    box-shadow: 0 0 3px rgba(255,255,255,0.5);
+}
+
+.voting-building {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(128, 128, 128, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    opacity: 0.7;
+    z-index: 1;
+}
+
+/* Добавляем новый класс для контейнера голосований */
+.voting-container {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    pointer-events: none; /* Позволяет кликать сквозь контейнер */
+    z-index: 5;
+}
+
+/* Делаем элементы голосования кликабельными */
+.voting-overlay, .voting-building {
+    pointer-events: auto; /* Восстанавливаем возможность клика */
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.voting-overlay:hover, .voting-building:hover {
+    transform: scale(1.1);
+    opacity: 1;
+}
+
+/* Стили для отображения процента голосов */
+.vote-percentage {
+    font-weight: bold;
+    text-shadow: 0 0 2px black; /* Улучшаем читаемость текста */
+}
+
+/* Стили для разных типов голосований */
+.vote-capture {
+    border-left: 3px solid #dc3545; /* Красная полоса для захвата */
+}
+
+.vote-build {
+    border-left: 3px solid #28a745; /* Зеленая полоса для строительства */
+}
+
+.vote-upgrade {
+    border-left: 3px solid #17a2b8; /* Синяя полоса для улучшения */
+}
+
+/* Стили для статуса игры */
+#game-timer {
+    text-align: center;
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+}
+
+#turn-timer {
+    color: #0d6efd;
+    font-weight: bold;
+}
+
+.faction-resources {
+    padding: 10px;
+    background-color: #f8f9fa;
+    border-radius: 5px;
+}
+
+.faction-resources ul li {
+    margin-bottom: 5px;
+    font-size: 16px;
+}
+
+/* Стили для модальных окон */
+.modal-content {
+    border-radius: 10px;
+}
+
+.modal-header {
+    background-color: #f8f9fa;
+    border-radius: 10px 10px 0 0;
+}
+
+/* Анимации */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.selected-cell {
+    animation: pulse 1s infinite;
+}
+
+/* Стили для кнопок действий */
+.action-button {
+    margin-bottom: 10px;
+    width: 100%;
+    padding: 10px;
+    font-size: 16px;
+}
+
+/* Стили для отображения доступных ресурсов в модальном окне */
+#available-gold, #available-wood, #available-stone, #available-ore {
+    font-weight: bold;
+    color: #28a745;
+    font-size: 1.1em;
+}
+
+/* Анимация обновления ресурсов */
+@keyframes resourceUpdate {
+    0% {
+        transform: scale(1);
+        color: inherit;
+    }
+    50% {
+        transform: scale(1.2);
+        color: #28a745;
+    }
+    100% {
+        transform: scale(1);
+        color: inherit;
+    }
+}
+
+.resource-updated {
+    animation: resourceUpdate 1s ease-in-out;
+}
+
+/* Стили для отображения информации о воинах */
+.warriors-info {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    background-color: rgba(255, 0, 0, 0.7);
+    color: white;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-size: 10px;
+    z-index: 3;
+    box-shadow: 0 0 3px rgba(255,255,255,0.5);
+}
+
+/* Адаптивные стили для мобильных устройств */
+@media (max-width: 768px) {
+    .map-cell {
+        width: 60px; /* Увеличиваем с 50px до 60px */
+        height: 60px; /* Увеличиваем с 50px до 60px */
+    }
+
+    .building-icon {
+        font-size: 24px; /* Увеличиваем с 18px до 24px */
+    }
+
+    .building-icon i {
+        font-size: 1.2em; /* Немного уменьшаем размер иконок для мобильных */
+    }
+
+    .action-btn {
+        width: 20px; /* Увеличиваем с 14px до 20px */
+        height: 20px; /* Увеличиваем с 14px до 20px */
+        font-size: 10px; /* Увеличиваем с 7px до 10px */
+    }
+
+    .voting-overlay, .warriors-info {
+        font-size: 8px; /* Увеличиваем с 7px до 8px */
+        padding: 1px 3px; /* Увеличиваем отступы */
+    }
+
+    .voting-building {
+        font-size: 14px; /* Увеличиваем с 12px до 14px */
+    }
+}
+
+/* Стили для списка голосований */
+.voting-item {
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.voting-item .progress {
+    height: 10px;
+}
+
+/* Стили для модальных окон */
+.modal-body .form-label {
+    font-weight: 500;
+}
+
+.modal-body .form-text {
+    color: #6c757d;
+}
+
+.cell-actions-container {
+    display: none;
+    position: absolute;
+    z-index: 1000;
+    background: white;
+    border: 1px solid #ddd;
+    padding: 10px;
+    border-radius: 5px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+.cell-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.map-container {
+    display: grid;
+    grid-template-columns: repeat(7, 70px); /* Увеличиваем размер ячеек с 60px до 70px */
+    gap: 2px;
+    overflow: auto;
+    max-height: 85vh; /* Увеличиваем максимальную высоту с 70vh до 85vh */
+    justify-content: center;
+    padding: 5px; /* Уменьшаем отступы с 10px до 5px */
+    background-color: #f5f5f5;
+    border-radius: 5px;
+}
+
+/* Новые стили для макета игры */
+.game-container {
+    display: flex;
+    gap: 20px;
+    margin-top: 10px;
+}
+
+.map-section {
+    flex: 1;
+    min-width: 0;
+}
+
+.status-section {
+    width: 300px;
+    flex-shrink: 0;
+}
+
+/* Стили для отображения координат в клетках */
+.coords {
+    position: absolute;
+    bottom: 2px;
+    left: 2px;
+    font-size: 9px;
+    color: rgba(0, 0, 0, 0.6);
+    background-color: rgba(255, 255, 255, 0.5);
+    padding: 1px 2px;
+    border-radius: 2px;
+    z-index: 2;
+    pointer-events: none; /* Чтобы не мешало кликам */
+}
+
+/* Стили для модального окна передачи ресурсов */
+#transferModal .text-muted {
+    display: block;
+    margin-top: 5px;
+    padding: 3px;
+    background-color: #f8f9fa;
+    border-radius: 3px;
+}
+
+#transferModal .form-control {
+    border-color: #6c757d;
+}
+
+#transferModal .form-control:focus {
+    border-color: #28a745;
+    box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
+}

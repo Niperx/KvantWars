@@ -1,0 +1,1394 @@
+{% extends "base.html" %}
+
+{% block title %}Главная{% endblock %}
+
+{% block styles %}
+<style>
+    .game-map {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .map-row {
+        display: flex;
+    }
+    
+    .map-cell {
+        width: 60px;
+        height: 60px;
+        border: 2px solid #ccc;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        cursor: pointer;
+    }
+    
+    .building-icon {
+        font-size: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+    }
+    
+    .faction-label {
+        position: absolute;
+        top: 2px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 7px;
+        font-weight: bold;
+        background-color: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 1px 2px;
+        border-radius: 2px;
+        z-index: 10;
+    }
+    
+    .voting-overlay {
+        position: absolute;
+        bottom: 2px;
+        right: 2px;
+        background-color: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 2px 4px;
+        border-radius: 3px;
+        font-size: 10px;
+    }
+    
+    .voting-building {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(128, 128, 128, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        opacity: 0.7;
+    }
+    
+    .action-buttons {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        display: none;
+    }
+    
+    .map-cell:hover .action-buttons {
+        display: block;
+    }
+    
+    .action-btn {
+        width: 20px;
+        height: 20px;
+        font-size: 10px;
+        padding: 0;
+        margin: 1px;
+    }
+    
+    /* Новые стили для улучшения макета */
+    .game-container {
+        display: flex;
+        gap: 20px;
+    }
+    
+    .map-section {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .status-section {
+        width: 300px;
+        flex-shrink: 0;
+    }
+    
+    .map-container {
+        display: grid;
+        grid-template-columns: repeat(7, 60px);
+        gap: 2px;
+        justify-content: center;
+        padding: 5px;
+        margin: 0 auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="game-container">
+        <div class="map-section">
+            <div class="card">
+                <div class="card-header">
+                    <h5>Карта мира</h5>
+                </div>
+                <div class="card-body position-relative">
+                    <div id="map-container" class="map-container">
+                        <!-- Карта будет загружена через JavaScript -->
+                    </div>
+                    <div id="cell-actions-container" class="cell-actions-container" style="display: none; position: absolute; z-index: 1000; background: white; border: 1px solid #ddd; padding: 10px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.1);"></div>
+                </div>
+            </div>
+            
+            <!-- Добавляем секцию логов -->
+            {% if current_user.is_authenticated and current_user.faction %}
+            <div class="card mt-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Журнал действий фракции</h5>
+                    <span class="badge bg-primary">Ход <span id="log-turn-number">1</span></span>
+                </div>
+                <div class="card-body">
+                    <div id="faction-logs" class="faction-logs" style="max-height: 200px; overflow-y: auto;">
+                        <div class="text-center text-muted">
+                            <p>Загрузка журнала действий...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="status-section">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Статус игры</h5>
+                </div>
+                <div class="card-body">
+                    <div id="game-timer" class="mb-3">
+                        <h6>Ход <span id="turn-number">1</span></h6>
+                        <h6>До конца хода:</h6>
+                        <div class="display-4 text-center" id="turn-timer">30</div>
+                    </div>
+                    
+                    {% if current_user.is_authenticated and current_user.faction %}
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Ресурсы фракции</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="faction-resources">
+                                <h6>Ресурсы фракции:</h6>
+                                <ul class="list-unstyled">
+                                    <li><span id="gold-amount">{{ current_user.faction.gold }}</span></li>
+                                    <li><span id="wood-amount">{{ current_user.faction.wood }}</span></li>
+                                    <li><span id="stone-amount">{{ current_user.faction.stone }}</span></li>
+                                    <li><span id="ore-amount">{{ current_user.faction.ore }}</span></li>
+                                    <li><span id="warriors-amount">{{ current_user.faction.warriors }}</span></li>
+                                </ul>
+                                <div class="mt-2">
+                                    <small class="text-muted">Содержание воинов: 1 золото за каждого воина в ход</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            {% if current_user.is_authenticated and current_user.faction %}
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Действия</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-danger" id="capture-cell-btn">Захватить клетку</button>
+                        <button class="btn btn-primary" id="defend-cell-btn">Защитить клетку</button>
+                        <button class="btn btn-warning" id="recruit-warriors-btn">Нанять воинов</button>
+                        <button class="btn btn-success" id="build-btn">Построить здание</button>
+                        <button class="btn btn-info" id="transfer-resources-btn">Передать ресурсы</button>
+                        
+                        
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="card">
+                <div class="card-body">
+                    <p class="text-center">Войдите в систему, чтобы участвовать в игре</p>
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('auth.login') }}" class="btn btn-primary">Войти</a>
+                        <a href="{{ url_for('auth.register') }}" class="btn btn-secondary">Регистрация</a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для захвата клетки -->
+<div class="modal fade" id="captureCellModal" tabindex="-1" aria-labelledby="captureCellModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="captureCellModalLabel">Захват клетки</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="capture-form">
+                    <div class="mb-3">
+                        <label for="capture-x" class="form-label">Координата X</label>
+                        <input type="number" class="form-control" id="capture-x" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="capture-y" class="form-label">Координата Y</label>
+                        <input type="number" class="form-control" id="capture-y" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="capture-warriors" class="form-label">Количество воинов</label>
+                        <input type="number" class="form-control" id="capture-warriors" min="1" required>
+                        <small class="text-muted">Доступно: <span id="available-warriors">0</span> воинов</small>
+                        <small class="text-muted d-block">Стоимость содержания: 1 золото за каждого воина в ход</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="confirm-capture">Захватить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для строительства -->
+<div class="modal fade" id="buildModal" tabindex="-1" aria-labelledby="buildModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="buildModalLabel">Строительство</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="build-form">
+                    <div class="mb-3">
+                        <label for="build-x" class="form-label">Координата X</label>
+                        <input type="number" class="form-control" id="build-x" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="build-y" class="form-label">Координата Y</label>
+                        <input type="number" class="form-control" id="build-y" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="building-type" class="form-label">Тип здания</label>
+                        <select class="form-select" id="building-type" required>
+                            <option value="">Выберите тип здания</option>
+                            <option value="SAWMILL">Лесопилка (+3 дерева за ход)</option>
+                            <option value="MINE">Шахта (+3 руды за ход)</option>
+                            <option value="QUARRY">Карьер (+3 камня за ход)</option>
+                            <option value="WAREHOUSE">Склад (увеличивает хранилище)</option>
+                            <option value="BARRACKS">Казармы (увеличивает лимит воинов)</option>
+                        </select>
+                        <small class="text-muted d-block mt-2">Все здания увеличивают хранилище ресурсов и лимит воинов. Специализированные здания дают +3 к соответствующему ресурсу за ход.</small>
+                        <small class="text-muted d-block">Замок является главным зданием фракции и может быть только один.</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h6>Стоимость строительства:</h6>
+                        <div id="building-cost" class="mt-2">
+                            <p class="mb-1">Выберите тип здания, чтобы увидеть стоимость</p>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="confirm-build">Построить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для передачи ресурсов -->
+<div class="modal fade" id="transferModal" tabindex="-1" aria-labelledby="transferModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="transferModalLabel">Передача ресурсов</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="transfer-form">
+                    <!-- Скрытые поля для координат -->
+                    <input type="hidden" id="transfer-x" value="0">
+                    <input type="hidden" id="transfer-y" value="0">
+                    
+                    <div class="mb-3">
+                        <label for="transfer-faction" class="form-label">Фракция</label>
+                        <select class="form-select" id="transfer-faction" required>
+                            <option value="">Выберите фракцию</option>
+                            {% for faction in factions %}
+                                {% if faction.id != current_user.faction_id %}
+                                <option value="{{ faction.id }}">{{ faction.name }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="transfer-gold" class="form-label">Золото</label>
+                        <input type="number" class="form-control" id="transfer-gold" min="0" value="0">
+                        <small class="text-muted">Доступно: <span id="available-gold" class="fw-bold text-success">0</span></small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="transfer-wood" class="form-label">Дерево</label>
+                        <input type="number" class="form-control" id="transfer-wood" min="0" value="0">
+                        <small class="text-muted">Доступно: <span id="available-wood" class="fw-bold text-success">0</span></small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="transfer-stone" class="form-label">Камень</label>
+                        <input type="number" class="form-control" id="transfer-stone" min="0" value="0">
+                        <small class="text-muted">Доступно: <span id="available-stone" class="fw-bold text-success">0</span></small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="transfer-ore" class="form-label">Руда</label>
+                        <input type="number" class="form-control" id="transfer-ore" min="0" value="0">
+                        <small class="text-muted">Доступно: <span id="available-ore" class="fw-bold text-success">0</span></small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="confirm-transfer">Передать</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для найма воинов -->
+<div class="modal fade" id="recruitWarriorsModal" tabindex="-1" aria-labelledby="recruitWarriorsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="recruitWarriorsModalLabel">Нанять воинов</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="recruit-form">
+                    <div class="mb-3">
+                        <label for="recruit-warriors" class="form-label">Количество воинов</label>
+                        <input type="number" class="form-control" id="recruit-warriors" min="1" value="1" required>
+                        <small class="text-muted">Стоимость: 5 золота за воина</small>
+                    </div>
+                    <div class="mb-3">
+                        <p>Общая стоимость: <span id="total-recruit-cost">5</span> золота</p>
+                        <p>Доступно золота: <span id="available-gold-recruit">0</span></p>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-primary" id="confirm-recruit">Нанять</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно для защиты клетки -->
+<div class="modal fade" id="defendCellModal" tabindex="-1" aria-labelledby="defendCellModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="defendCellModalLabel">Защитить клетку</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Выберите количество воинов для защиты клетки:</p>
+                <div class="mb-3">
+                    <label for="defend-warriors" class="form-label">Количество воинов:</label>
+                    <input type="number" class="form-control" id="defend-warriors" min="1" value="1">
+                    <div class="form-text">У вас доступно: <span id="available-warriors-defend">0</span> воинов</div>
+                </div>
+                <div class="mb-3">
+                    <label for="defend-x" class="form-label">Координата X:</label>
+                    <input type="number" class="form-control" id="defend-x" min="0" max="6" value="0">
+                </div>
+                <div class="mb-3">
+                    <label for="defend-y" class="form-label">Координата Y:</label>
+                    <input type="number" class="form-control" id="defend-y" min="0" max="6" value="0">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" id="confirm-defend">Защитить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Глобальные переменные
+    let userFactionId = {{ current_user.faction_id if current_user.is_authenticated and current_user.faction else 'null' }};
+    
+    // Функция для обновления таймера хода
+    function updateTurnTimer() {
+        fetch('/api/turn')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('turn-number').textContent = data.current_turn;
+                document.getElementById('turn-timer').textContent = data.seconds_left;
+            });
+    }
+    
+    // Функция для обновления состояния игры
+    function updateGameState() {
+        updateTurnTimer();
+        updateMap();
+        
+        // Проверяем, авторизован ли пользователь перед обновлением ресурсов и логов
+        if (userFactionId) {
+            updateResources();
+            updateFactionLogs();
+        }
+    }
+    
+    // Функция для обновления логов фракции
+    function updateFactionLogs() {
+        fetch('/api/faction_logs')
+            .then(response => response.json())
+            .then(data => {
+                if (!data.success) {
+                    console.error('Ошибка при получении логов:', data.message);
+                    return;
+                }
+                
+                const logsContainer = document.getElementById('faction-logs');
+                if (!logsContainer) return;
+                
+                // Обновляем номер хода в заголовке логов
+                const logTurnNumber = document.getElementById('log-turn-number');
+                if (logTurnNumber) {
+                    logTurnNumber.textContent = data.current_turn;
+                }
+                
+                // Если нет логов, показываем сообщение
+                if (data.logs.length === 0) {
+                    logsContainer.innerHTML = `
+                        <div class="text-center text-muted">
+                            <p>В этом ходу ваша фракция еще не совершала действий</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Формируем HTML для логов
+                let logsHTML = '<ul class="list-group list-group-flush">';
+                
+                data.logs.forEach(log => {
+                    logsHTML += `
+                        <li class="list-group-item p-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <small class="text-muted">${log.timestamp}</small>
+                                <small class="text-primary">${log.username}</small>
+                            </div>
+                            <div>${log.message}</div>
+                        </li>
+                    `;
+                });
+                
+                logsHTML += '</ul>';
+                logsContainer.innerHTML = logsHTML;
+            })
+            .catch(error => {
+                console.error('Ошибка при обновлении логов фракции:', error);
+            });
+    }
+    
+    // Функция для обновления карты
+    function updateMap() {
+        fetch('/api/map')
+            .then(response => response.json())
+            .then(mapData => {
+                console.log('Map data:', mapData);
+                
+                // Проверяем формат данных
+                if (!Array.isArray(mapData)) {
+                    console.error('Неверный формат данных карты:', mapData);
+                    return;
+                }
+                
+                // Обновляем каждую клетку
+                mapData.forEach(cell => {
+                    // Находим элемент клетки
+                    const cellElement = document.querySelector(`.map-cell[data-x="${cell.x}"][data-y="${cell.y}"]`);
+                    if (!cellElement) {
+                        console.warn(`Элемент для клетки (${cell.x}, ${cell.y}) не найден`);
+                        return;
+                    }
+                    
+                    // Обновляем фракцию
+                    if (cell.faction_id) {
+                        cellElement.dataset.factionId = cell.faction_id;
+                        cellElement.style.backgroundColor = getFactionColor(cell.faction_id);
+                    } else {
+                        cellElement.dataset.factionId = '';
+                        cellElement.style.backgroundColor = '';
+                    }
+                    
+                    // Обновляем здание
+                    const buildingIcon = cellElement.querySelector('.building-icon');
+                    if (buildingIcon) {
+                        if (cell.building_type) {
+                            buildingIcon.innerHTML = getBuildingIcon(cell.building_type);
+                            buildingIcon.style.display = 'flex';
+                        } else if (cell.faction_id && isCornerCell(parseInt(cell.x), parseInt(cell.y))) {
+                            // Если это угловая клетка с фракцией, но без здания, добавляем замок
+                            buildingIcon.innerHTML = getBuildingIcon('castle');
+                            buildingIcon.style.display = 'flex';
+                        } else {
+                            buildingIcon.style.display = 'none';
+                        }
+                    }
+                    
+                    // Обновляем информацию о защитниках нейтральных клеток с постройками
+                    let defendersElement = cellElement.querySelector('.neutral-defenders');
+                    if (!defendersElement) {
+                        defendersElement = document.createElement('div');
+                        defendersElement.className = 'neutral-defenders';
+                        defendersElement.style.position = 'absolute';
+                        defendersElement.style.bottom = '2px';
+                        defendersElement.style.right = '2px';
+                        defendersElement.style.backgroundColor = 'rgba(0, 0, 0, 0.7)'; // Увеличиваем непрозрачность фона
+                        defendersElement.style.color = 'white';
+                        defendersElement.style.padding = '0px 2px 1px 2px'; // Асимметричные отступы: верх 0px, право 2px, низ 1px, лево 2px
+                        defendersElement.style.borderRadius = '3px';
+                        defendersElement.style.fontSize = '10px'; // Увеличиваем размер шрифта
+                        defendersElement.style.zIndex = '5'; // Добавляем z-index
+                        cellElement.appendChild(defendersElement);
+                    }
+                    
+                    // Показываем или скрываем информацию о защитниках
+                    if (cell.faction_id === null && cell.building_type && cell.neutral_defenders) {
+                        // Проверяем наличие SVG, если нет - используем текстовую иконку
+                        const shieldImg = new Image();
+                        shieldImg.src = '/static/assets/resources/Щит.svg';
+                        
+                        shieldImg.onload = function() {
+                            defendersElement.innerHTML = `<img src="/static/assets/resources/Щит.svg" alt="shield" style="width: 10px; height: 10px; vertical-align: middle; margin-right: 2px;"> ${cell.neutral_defenders}`;
+                        };
+                        
+                        shieldImg.onerror = function() {
+                            // Если изображение не загрузилось, используем эмодзи
+                            defendersElement.innerHTML = `🛡️ ${cell.neutral_defenders}`;
+                        };
+                        
+                        defendersElement.style.display = 'block';
+                    } else {
+                        defendersElement.style.display = 'none';
+                    }
+                    
+                    // Обновляем информацию о бонусных ресурсах на специальных клетках
+                    let resourceBonusElement = cellElement.querySelector('.resource-bonus');
+                    if (!resourceBonusElement) {
+                        resourceBonusElement = document.createElement('div');
+                        resourceBonusElement.className = 'resource-bonus';
+                        resourceBonusElement.style.position = 'absolute';
+                        resourceBonusElement.style.top = '2px';
+                        resourceBonusElement.style.right = '2px';
+                        resourceBonusElement.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+                        resourceBonusElement.style.color = 'white';
+                        resourceBonusElement.style.padding = '1px 2px';
+                        resourceBonusElement.style.borderRadius = '3px';
+                        resourceBonusElement.style.fontSize = '8px';
+                        cellElement.appendChild(resourceBonusElement);
+                    }
+                    
+                    // Показываем значки ресурсов на специальных клетках
+                    const x = parseInt(cell.x);
+                    const y = parseInt(cell.y);
+                    
+                    if ((x === 1 && y === 3) || (x === 3 && y === 1) || (x === 3 && y === 5) || (x === 5 && y === 3)) {
+                        let resourceType = '';
+                        let resourceColor = '';
+                        
+                        if (x === 1 && y === 3) {
+                            resourceType = 'gold'; // Золото
+                            resourceColor = '#FFD700';
+                        } else if (x === 3 && y === 1) {
+                            resourceType = 'wood'; // Дерево
+                            resourceColor = '#228B22';
+                        } else if (x === 3 && y === 5) {
+                            resourceType = 'ore'; // Руда
+                            resourceColor = '#A9A9A9';
+                        } else if (x === 5 && y === 3) {
+                            resourceType = 'stone'; // Камень
+                            resourceColor = '#708090';
+                        }
+                        
+                        resourceBonusElement.innerHTML = `${getResourceIcon(resourceType)} +20%`;
+                        resourceBonusElement.style.display = 'block';
+                        resourceBonusElement.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+                        resourceBonusElement.style.borderColor = resourceColor;
+                    } else if (x === 3 && y === 3) {
+                        // Центральная клетка с бонусом к воинам
+                        resourceBonusElement.innerHTML = `${getResourceIcon('warriors')} +20%`;
+                        resourceBonusElement.style.display = 'block';
+                        resourceBonusElement.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+                        resourceBonusElement.style.borderColor = '#FF4500'; // OrangeRed
+                    } else {
+                        resourceBonusElement.style.display = 'none';
+                    }
+                });
+            })
+            .catch(error => console.error('Ошибка при обновлении карты:', error));
+    }
+    
+    // Функция для обновления ресурсов
+    function updateResources() {
+        if (!userFactionId) return;
+        
+        fetch('/api/resources')
+            .then(response => response.json())
+            .then(data => {
+                // Обновляем отображение ресурсов с увеличенными иконками
+                document.getElementById('gold-amount').innerHTML = `<img src="/static/assets/resources/Золото.svg" alt="gold" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Золото: ${data.gold}`;
+                document.getElementById('wood-amount').innerHTML = `<img src="/static/assets/resources/Дерево.svg" alt="wood" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Дерево: ${data.wood}`;
+                document.getElementById('stone-amount').innerHTML = `<img src="/static/assets/resources/Камень.svg" alt="stone" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Камень: ${data.stone}`;
+                document.getElementById('ore-amount').innerHTML = `<img src="/static/assets/resources/Руда.svg" alt="ore" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Руда: ${data.ore}`;
+                
+                // Обновляем отображение воинов, включая информацию о отправленных воинах
+                const warriorsElement = document.getElementById('warriors-amount');
+                warriorsElement.innerHTML = `<img src="/static/assets/resources/Воины.svg" alt="warriors" style="width: 18px; height: 18px; vertical-align: middle; margin-right: 4px;"> Воины: ${data.warriors}`;
+                
+                // Если есть информация о отправленных воинах, добавляем её в скобках
+                if (data.total_warriors_sent && data.total_warriors_sent > 0) {
+                    let detailText = '';
+                    
+                    if (data.warriors_sent > 0 && data.warriors_defending > 0) {
+                        detailText = `${data.total_warriors_sent} отправлено (${data.warriors_sent} на захват, ${data.warriors_defending} на защиту)`;
+                    } else if (data.warriors_sent > 0) {
+                        detailText = `${data.warriors_sent} отправлено на захват`;
+                    } else if (data.warriors_defending > 0) {
+                        detailText = `${data.warriors_defending} отправлено на защиту`;
+                    }
+                    
+                    warriorsElement.innerHTML += ` (${detailText})`;
+                }
+                
+                // Обновляем доступное количество воинов в форме захвата
+                document.getElementById('available-warriors').textContent = data.warriors;
+            })
+            .catch(error => console.error('Ошибка при обновлении ресурсов:', error));
+    }
+    
+    // Функция для получения цвета фракции
+    function getFactionColor(factionId) {
+        const colors = {
+            1: '#ff6b6b', // Красный
+            2: '#4ecdc4', // Бирюзовый
+            3: '#ffe66d', // Желтый
+            4: '#6b5b95'  // Фиолетовый
+        };
+        return colors[factionId] || '#cccccc';
+    }
+    
+    // Функция для получения иконки здания
+    function getBuildingIcon(buildingType) {
+        if (!buildingType) return '';
+        
+        // Преобразуем тип здания в нижний регистр для единообразия
+        const type = buildingType.toLowerCase();
+        
+        // Определяем путь к изображению в зависимости от типа здания
+        let imagePath = '';
+        switch (type) {
+            case 'castle':
+                imagePath = '/static/assets/buildings/Замок.svg';
+                break;
+            case 'sawmill':
+                imagePath = '/static/assets/buildings/Лесопилка.svg';
+                break;
+            case 'mine':
+                imagePath = '/static/assets/buildings/Шахта.svg';
+                break;
+            case 'quarry':
+                imagePath = '/static/assets/buildings/Карьер.svg';
+                break;
+            case 'warehouse':
+                imagePath = '/static/assets/buildings/Склад.svg';
+                break;
+            case 'barracks':
+                imagePath = '/static/assets/buildings/Казарма.svg';
+                break;
+            default:
+                imagePath = '/static/assets/buildings/Казармы.svg';
+        }
+        
+        // Возвращаем HTML с тегом img
+        return `<img src="${imagePath}" alt="${type}" style="width: 32px; height: 32px;">`;
+    }
+    
+    // Функция для получения иконки ресурса
+    function getResourceIcon(resourceType) {
+        // Определяем путь к изображению в зависимости от типа ресурса
+        let imagePath = '';
+        switch (resourceType) {
+            case 'gold':
+                imagePath = '/static/assets/resources/Золото.svg';
+                break;
+            case 'wood':
+                imagePath = '/static/assets/resources/Дерево.svg';
+                break;
+            case 'stone':
+                imagePath = '/static/assets/resources/Камень.svg';
+                break;
+            case 'ore':
+                imagePath = '/static/assets/resources/Руда.svg';
+                break;
+            case 'warriors':
+                imagePath = '/static/assets/resources/Воины.svg';
+                break;
+            default:
+                return '';
+        }
+        
+        // Возвращаем HTML с тегом img
+        return `<img src="${imagePath}" alt="${resourceType}" style="width: 12px; height: 12px; vertical-align: middle;">`;
+    }
+    
+    // Функция для выполнения действия
+    function executeAction(actionType, x, y, buildingType = null, additionalData = null) {
+        console.log(`Выполнение действия: ${actionType} на координатах (${x}, ${y})`);
+        
+        const data = {
+            action_type: actionType,
+            target_x: x,
+            target_y: y
+        };
+        
+        if (buildingType) {
+            data.building_type = buildingType;
+        }
+        
+        if (additionalData) {
+            if (actionType === 'CAPTURE_CELL' && typeof additionalData === 'number') {
+                data.warriors = additionalData;
+            } else if (actionType === 'TRANSFER_RESOURCES' && typeof additionalData === 'object') {
+                data.resources = additionalData;
+            }
+        }
+        
+        fetch('/api/execute_direct_action', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.success) {
+                if (actionType === 'CAPTURE_CELL') {
+                    // Для захвата клетки показываем специальное сообщение
+                    showNotification(result.message, 'info');
+                } else if (actionType === 'BUILD') {
+                    // Для строительства показываем специальное сообщение
+                    showNotification(result.message, 'info');
+                } else {
+                    // Для других действий показываем стандартное сообщение
+                    showNotification('Действие выполнено успешно!', 'success');
+                }
+                // Обновляем состояние игры (ресурсы и т.д.)
+                updateResources();
+                // Обновляем логи фракции
+                updateFactionLogs();
+            } else {
+                showNotification(`Ошибка: ${result.message || 'Неизвестная ошибка'}`, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Ошибка при выполнении действия:', error);
+            showNotification('Произошла ошибка при выполнении действия', 'error');
+        });
+    }
+    
+    // Функция для отображения уведомлений
+    function showNotification(message, type = 'info') {
+        // Создаем элемент уведомления
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type === 'error' ? 'danger' : type === 'success' ? 'success' : 'info'} notification`;
+        notification.textContent = message;
+        
+        // Добавляем стили для уведомления
+        notification.style.position = 'fixed';
+        notification.style.top = '20px';
+        notification.style.right = '20px';
+        notification.style.zIndex = '9999';
+        notification.style.minWidth = '300px';
+        notification.style.padding = '15px';
+        notification.style.borderRadius = '5px';
+        notification.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+        notification.style.opacity = '0';
+        notification.style.transition = 'opacity 0.3s ease-in-out';
+        
+        // Добавляем уведомление в DOM
+        document.body.appendChild(notification);
+        
+        // Показываем уведомление
+        setTimeout(() => {
+            notification.style.opacity = '1';
+        }, 10);
+        
+        // Скрываем и удаляем уведомление через 3 секунды
+        setTimeout(() => {
+            notification.style.opacity = '0';
+            setTimeout(() => {
+                document.body.removeChild(notification);
+            }, 300);
+        }, 3000);
+    }
+    
+    // Инициализация карты
+    function initMap() {
+        const mapContainer = document.querySelector('.map-container');
+        if (!mapContainer) return;
+        
+        // Очищаем контейнер
+        mapContainer.innerHTML = '';
+        
+        // Получаем данные карты
+        fetch('/api/map')
+            .then(response => response.json())
+            .then(mapData => {
+                console.log('Initial map data:', mapData);
+                
+                // Создаем клетки
+                mapData.forEach(cell => {
+                    const cellElement = createCellElement(cell);
+                    
+                    // Добавляем обработчик клика для выбора клетки
+                    cellElement.addEventListener('click', function() {
+                        // Заполняем поля в модальных окнах
+                        document.querySelectorAll('#capture-x, #build-x, #defend-x').forEach(el => el.value = cell.x);
+                        document.querySelectorAll('#capture-y, #build-y, #defend-y').forEach(el => el.value = cell.y);
+                    });
+                    
+                    // Добавляем клетку на карту
+                    mapContainer.appendChild(cellElement);
+                });
+            })
+            .catch(error => console.error('Ошибка при инициализации карты:', error));
+    }
+    
+    function createCellElement(cell) {
+        const cellElement = document.createElement('div');
+        cellElement.className = 'map-cell';
+        cellElement.dataset.x = cell.x;
+        cellElement.dataset.y = cell.y;
+        
+        // Устанавливаем цвет фона в зависимости от фракции
+        if (cell.faction_id) {
+            cellElement.style.backgroundColor = getFactionColor(cell.faction_id);
+        }
+        
+        // Добавляем координаты клетки в углу
+        const coords = document.createElement('div');
+        coords.className = 'coords';
+        coords.textContent = `${cell.x},${cell.y}`;
+        cellElement.appendChild(coords);
+        
+        // Проверяем, является ли клетка замком
+        let isCastle = false;
+        
+        // Добавляем название фракции над замком, если это замок
+        if ((cell.building_type && cell.building_type.toLowerCase() === 'castle') || 
+            (cell.faction_id && isCornerCell(parseInt(cell.x), parseInt(cell.y)))) {
+            isCastle = true;
+            
+            // Добавляем название фракции над замком
+            if (cell.faction_id && cell.faction_name) {
+                const factionLabel = document.createElement('div');
+                factionLabel.className = 'faction-label';
+                factionLabel.textContent = cell.faction_name;
+                factionLabel.style.position = 'absolute';
+                factionLabel.style.top = '2px';
+                factionLabel.style.left = '50%';
+                factionLabel.style.transform = 'translateX(-50%)';
+                factionLabel.style.fontSize = '7px';
+                factionLabel.style.fontWeight = 'bold';
+                factionLabel.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+                factionLabel.style.color = 'white';
+                factionLabel.style.padding = '1px 2px';
+                factionLabel.style.borderRadius = '2px';
+                factionLabel.style.zIndex = '10';
+                cellElement.appendChild(factionLabel);
+            }
+        }
+        
+        // Добавляем информацию о здании, если оно есть
+        const buildingIcon = document.createElement('div');
+        buildingIcon.className = 'building-icon';
+        
+        if (cell.building_type) {
+            // Используем функцию getBuildingIcon для получения HTML с изображением
+            buildingIcon.innerHTML = getBuildingIcon(cell.building_type);
+            buildingIcon.style.display = 'flex';
+        } else if (cell.faction_id && isCornerCell(parseInt(cell.x), parseInt(cell.y))) {
+            // Если это угловая клетка с фракцией, но без здания, добавляем замок
+            buildingIcon.innerHTML = getBuildingIcon('castle');
+            buildingIcon.style.display = 'flex';
+        } else {
+            buildingIcon.style.display = 'none';
+        }
+        
+        cellElement.appendChild(buildingIcon);
+        
+        // Обновляем информацию о защитниках нейтральных клеток с постройками
+        let defendersElement = document.createElement('div');
+        defendersElement.className = 'neutral-defenders';
+        defendersElement.style.position = 'absolute';
+        defendersElement.style.bottom = '2px';
+        defendersElement.style.right = '2px';
+        defendersElement.style.backgroundColor = 'rgba(0, 0, 0, 0.7)'; // Увеличиваем непрозрачность фона
+        defendersElement.style.color = 'white';
+        defendersElement.style.padding = '0px 2px 1px 2px'; // Асимметричные отступы: верх 0px, право 2px, низ 1px, лево 2px
+        defendersElement.style.borderRadius = '3px';
+        defendersElement.style.fontSize = '10px'; // Увеличиваем размер шрифта
+        defendersElement.style.zIndex = '5'; // Добавляем z-index
+        cellElement.appendChild(defendersElement);
+        
+        // Показываем или скрываем информацию о защитниках
+        if (cell.faction_id === null && cell.building_type && cell.neutral_defenders) {
+            // Проверяем наличие SVG, если нет - используем текстовую иконку
+            const shieldImg = new Image();
+            shieldImg.src = '/static/assets/resources/Щит.svg';
+            
+            shieldImg.onload = function() {
+                defendersElement.innerHTML = `<img src="/static/assets/resources/Щит.svg" alt="shield" style="width: 10px; height: 10px; vertical-align: middle; margin-right: 2px;"> ${cell.neutral_defenders}`;
+            };
+            
+            shieldImg.onerror = function() {
+                // Если изображение не загрузилось, используем эмодзи
+                defendersElement.innerHTML = `🛡️ ${cell.neutral_defenders}`;
+            };
+            
+            defendersElement.style.display = 'block';
+        } else {
+            defendersElement.style.display = 'none';
+        }
+        
+        // Добавляем информацию о бонусных ресурсах на специальных клетках
+        let resourceBonusElement = document.createElement('div');
+        resourceBonusElement.className = 'resource-bonus';
+        resourceBonusElement.style.position = 'absolute';
+        resourceBonusElement.style.top = '2px';
+        resourceBonusElement.style.right = '2px';
+        resourceBonusElement.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+        resourceBonusElement.style.color = 'white';
+        resourceBonusElement.style.padding = '1px 2px';
+        resourceBonusElement.style.borderRadius = '3px';
+        resourceBonusElement.style.fontSize = '8px';
+        cellElement.appendChild(resourceBonusElement);
+        
+        // Показываем значки ресурсов на специальных клетках
+        const x = parseInt(cell.x);
+        const y = parseInt(cell.y);
+        
+        if ((x === 1 && y === 3) || (x === 3 && y === 1) || (x === 3 && y === 5) || (x === 5 && y === 3)) {
+            let resourceType = '';
+            let resourceColor = '';
+            
+            if (x === 1 && y === 3) {
+                resourceType = 'gold'; // Золото
+                resourceColor = '#FFD700';
+            } else if (x === 3 && y === 1) {
+                resourceType = 'wood'; // Дерево
+                resourceColor = '#228B22';
+            } else if (x === 3 && y === 5) {
+                resourceType = 'ore'; // Руда
+                resourceColor = '#A9A9A9';
+            } else if (x === 5 && y === 3) {
+                resourceType = 'stone'; // Камень
+                resourceColor = '#708090';
+            }
+            
+            resourceBonusElement.innerHTML = `${getResourceIcon(resourceType)} +20%`;
+            resourceBonusElement.style.display = 'block';
+            resourceBonusElement.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+            resourceBonusElement.style.borderColor = resourceColor;
+        } else if (x === 3 && y === 3) {
+            // Центральная клетка с бонусом к воинам
+            resourceBonusElement.innerHTML = `${getResourceIcon('warriors')} +20%`;
+            resourceBonusElement.style.display = 'block';
+            resourceBonusElement.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+            resourceBonusElement.style.borderColor = '#FF4500'; // OrangeRed
+        } else {
+            resourceBonusElement.style.display = 'none';
+        }
+        
+        return cellElement;
+    }
+    
+    // Функция для проверки, является ли клетка угловой (начальной территорией)
+    function isCornerCell(x, y) {
+        const corners = [[0, 0], [0, 6], [6, 0], [6, 6]];
+        for (let i = 0; i < corners.length; i++) {
+            if (corners[i][0] === x && corners[i][1] === y) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    // Инициализация обработчиков событий
+    function initEventListeners() {
+        // Обработчики для кнопок в правой колонке
+        const captureCellBtn = document.getElementById('capture-cell-btn');
+        if (captureCellBtn) {
+            captureCellBtn.addEventListener('click', function() {
+                // Открываем модальное окно захвата клетки
+                const modal = new bootstrap.Modal(document.getElementById('captureCellModal'));
+                // Устанавливаем значение воинов по умолчанию
+                document.getElementById('capture-warriors').value = 1;
+                // Обновляем доступное количество воинов
+                updateResources();
+                modal.show();
+            });
+        }
+        
+        const buildBtn = document.getElementById('build-btn');
+        if (buildBtn) {
+            buildBtn.addEventListener('click', function() {
+                // Открываем модальное окно строительства
+                const modal = new bootstrap.Modal(document.getElementById('buildModal'));
+                modal.show();
+            });
+        }
+        
+        // Обработчик для кнопки найма воинов
+        const recruitWarriorsBtn = document.getElementById('recruit-warriors-btn');
+        if (recruitWarriorsBtn) {
+            recruitWarriorsBtn.addEventListener('click', function() {
+                // Открываем модальное окно найма воинов
+                const modal = new bootstrap.Modal(document.getElementById('recruitWarriorsModal'));
+                // Обновляем доступное количество золота
+                updateRecruitModalGold();
+                modal.show();
+            });
+        }
+        
+        // Обработчик для изменения количества воинов в форме найма
+        const recruitWarriorsInput = document.getElementById('recruit-warriors');
+        if (recruitWarriorsInput) {
+            recruitWarriorsInput.addEventListener('input', function() {
+                updateRecruitCost();
+            });
+        }
+        
+        // Обработчик для кнопки подтверждения найма воинов
+        const confirmRecruitBtn = document.getElementById('confirm-recruit');
+        if (confirmRecruitBtn) {
+            confirmRecruitBtn.addEventListener('click', function() {
+                const warriors = parseInt(document.getElementById('recruit-warriors').value);
+                
+                // Создаем объект с данными о количестве воинов
+                const data = {
+                    action_type: 'RECRUIT_WARRIORS',
+                    target_x: 0,
+                    target_y: 0,
+                    warriors: warriors
+                };
+                
+                // Отправляем запрос напрямую, без использования executeAction
+                fetch('/api/execute_direct_action', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(result => {
+                    if (result.success) {
+                        showNotification(result.message, 'success');
+                        // Обновляем ресурсы
+                        updateResources();
+                        // Обновляем логи фракции
+                        updateFactionLogs();
+                    } else {
+                        showNotification(`Ошибка: ${result.message || 'Неизвестная ошибка'}`, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка при найме воинов:', error);
+                    showNotification('Произошла ошибка при найме воинов', 'error');
+                });
+                
+                // Закрываем модальное окно
+                const modal = bootstrap.Modal.getInstance(document.getElementById('recruitWarriorsModal'));
+                modal.hide();
+            });
+        }
+        
+        // Обработчик для выбора типа здания
+        const buildingTypeSelect = document.getElementById('building-type');
+        if (buildingTypeSelect) {
+            buildingTypeSelect.addEventListener('change', function() {
+                updateBuildingCost(this.value);
+            });
+        }
+        
+        const transferResourcesBtn = document.getElementById('transfer-resources-btn');
+        if (transferResourcesBtn) {
+            transferResourcesBtn.addEventListener('click', function() {
+                // Открываем модальное окно передачи ресурсов
+                const modal = new bootstrap.Modal(document.getElementById('transferModal'));
+                // Обновляем доступные ресурсы
+                updateResources();
+                modal.show();
+            });
+        }
+        
+        // Обработчик для кнопки захвата клетки в модальном окне
+        const confirmCaptureBtn = document.getElementById('confirm-capture');
+        if (confirmCaptureBtn) {
+            confirmCaptureBtn.addEventListener('click', function() {
+                const x = parseInt(document.getElementById('capture-x').value);
+                const y = parseInt(document.getElementById('capture-y').value);
+                const warriors = parseInt(document.getElementById('capture-warriors').value);
+                
+                executeAction('CAPTURE_CELL', x, y, null, warriors);
+                
+                // Закрываем модальное окно
+                const modal = bootstrap.Modal.getInstance(document.getElementById('captureCellModal'));
+                modal.hide();
+            });
+        }
+        
+        // Обработчик для кнопки строительства в модальном окне
+        const confirmBuildBtn = document.getElementById('confirm-build');
+        if (confirmBuildBtn) {
+            confirmBuildBtn.addEventListener('click', function() {
+                const x = parseInt(document.getElementById('build-x').value);
+                const y = parseInt(document.getElementById('build-y').value);
+                const buildingType = document.getElementById('building-type').value;
+                
+                executeAction('BUILD', x, y, buildingType);
+                
+                // Закрываем модальное окно
+                const modal = bootstrap.Modal.getInstance(document.getElementById('buildModal'));
+                modal.hide();
+            });
+        }
+        
+        // Обработчик для кнопки передачи ресурсов в модальном окне
+        const confirmTransferBtn = document.getElementById('confirm-transfer');
+        if (confirmTransferBtn) {
+            confirmTransferBtn.addEventListener('click', function() {
+                const factionId = document.getElementById('transfer-faction').value;
+                const wood = parseInt(document.getElementById('transfer-wood').value) || 0;
+                const stone = parseInt(document.getElementById('transfer-stone').value) || 0;
+                const gold = parseInt(document.getElementById('transfer-gold').value) || 0;
+                const ore = parseInt(document.getElementById('transfer-ore').value) || 0;
+                
+                // Проверяем, что хотя бы один ресурс передается
+                if (wood + stone + gold + ore === 0) {
+                    showNotification('Выберите хотя бы один ресурс для передачи', 'error');
+                    return;
+                }
+                
+                const resources = { wood, stone, gold, ore, faction_id: factionId };
+                executeAction('TRANSFER_RESOURCES', 0, 0, null, resources);
+                
+                // Закрываем модальное окно
+                const modal = bootstrap.Modal.getInstance(document.getElementById('transferModal'));
+                modal.hide();
+            });
+        }
+        
+        // Добавляем обработчики клика на клетки карты
+        const mapCells = document.querySelectorAll('.map-cell');
+        mapCells.forEach(cell => {
+            cell.addEventListener('click', function() {
+                const x = parseInt(this.dataset.x);
+                const y = parseInt(this.dataset.y);
+                
+                // Заполняем поля в модальных окнах
+                document.querySelectorAll('#capture-x, #build-x, #defend-x').forEach(el => el.value = x);
+                document.querySelectorAll('#capture-y, #build-y, #defend-y').forEach(el => el.value = y);
+            });
+        });
+        
+        // Обработчик для кнопки защиты клетки
+        const defendCellBtn = document.getElementById('defend-cell-btn');
+        if (defendCellBtn) {
+            defendCellBtn.addEventListener('click', function() {
+                // Открываем модальное окно защиты клетки
+                const modal = new bootstrap.Modal(document.getElementById('defendCellModal'));
+                // Обновляем доступное количество воинов
+                updateDefendModalWarriors();
+                modal.show();
+            });
+        }
+    }
+    
+    // Функция для обновления отображения стоимости здания
+    function updateBuildingCost(buildingType) {
+        const buildingCostDiv = document.getElementById('building-cost');
+        if (!buildingCostDiv) return;
+        
+        // Определяем стоимость здания в зависимости от типа
+        const buildingCosts = {
+            'SAWMILL': {gold: 30, wood: 10, stone: 15, ore: 5},
+            'MINE': {gold: 30, wood: 15, stone: 10, ore: 5},
+            'QUARRY': {gold: 30, wood: 15, stone: 5, ore: 10},
+            'WAREHOUSE': {gold: 20, wood: 20, stone: 20, ore: 0},
+            'BARRACKS': {gold: 40, wood: 15, stone: 15, ore: 10}
+        };
+        
+        // Если тип здания не выбран или неизвестен
+        if (!buildingType || !buildingCosts[buildingType]) {
+            buildingCostDiv.innerHTML = '<p class="mb-1">Выберите тип здания, чтобы увидеть стоимость</p>';
+            return;
+        }
+        
+        // Получаем стоимость выбранного здания
+        const cost = buildingCosts[buildingType];
+        
+        // Формируем HTML для отображения стоимости
+        let costHTML = `
+            <ul class="list-unstyled">
+                <li>${getResourceIcon('gold')} Золото: ${cost.gold}</li>
+                <li>${getResourceIcon('wood')} Дерево: ${cost.wood}</li>
+                <li>${getResourceIcon('stone')} Камень: ${cost.stone}</li>
+                <li>${getResourceIcon('ore')} Руда: ${cost.ore}</li>
+            </ul>
+        `;
+        
+        // Обновляем содержимое блока стоимости
+        buildingCostDiv.innerHTML = costHTML;
+    }
+    
+    // Функция для обновления стоимости найма воинов
+    function updateRecruitCost() {
+        const warriorsCount = parseInt(document.getElementById('recruit-warriors').value) || 0;
+        const costPerWarrior = 5;
+        const totalCost = warriorsCount * costPerWarrior;
+        
+        document.getElementById('total-recruit-cost').textContent = totalCost;
+    }
+    
+    // Функция для обновления доступного золота в модальном окне найма
+    function updateRecruitModalGold() {
+        const goldAmount = document.getElementById('gold-amount').textContent;
+        document.getElementById('available-gold-recruit').textContent = goldAmount;
+    }
+    
+    // Инициализация обработчиков событий модальных окон
+    function initModalEventListeners() {
+        // Обработчик для модального окна найма воинов
+        const recruitModal = document.getElementById('recruitWarriorsModal');
+        if (recruitModal) {
+            recruitModal.addEventListener('shown.bs.modal', function() {
+                // Обновляем доступное золото при открытии модального окна
+                updateRecruitModalGold();
+                // Обновляем стоимость найма
+                updateRecruitCost();
+            });
+        }
+    }
+    
+    // Функция для обновления количества доступных воинов в модальном окне защиты
+    function updateDefendModalWarriors() {
+        const warriorsAmount = document.getElementById('warriors-amount');
+        const availableWarriors = document.getElementById('available-warriors-defend');
+        
+        if (warriorsAmount && availableWarriors) {
+            availableWarriors.textContent = warriorsAmount.textContent;
+            
+            // Устанавливаем максимальное значение для поля ввода
+            const defendWarriorsInput = document.getElementById('defend-warriors');
+            if (defendWarriorsInput) {
+                defendWarriorsInput.max = warriorsAmount.textContent;
+            }
+        }
+    }
+    
+    // Обработчик для кнопки подтверждения защиты клетки
+    const confirmDefendBtn = document.getElementById('confirm-defend');
+    if (confirmDefendBtn) {
+        confirmDefendBtn.addEventListener('click', function() {
+            const warriors = parseInt(document.getElementById('defend-warriors').value);
+            const x = parseInt(document.getElementById('defend-x').value);
+            const y = parseInt(document.getElementById('defend-y').value);
+            
+            // Создаем объект с данными о защите
+            const data = {
+                action_type: 'DEFEND_CELL',
+                target_x: x,
+                target_y: y,
+                warriors: warriors
+            };
+            
+            // Отправляем запрос
+            fetch('/api/execute_direct_action', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    showNotification(result.message, 'success');
+                    // Обновляем ресурсы
+                    updateResources();
+                    // Обновляем логи фракции
+                    updateFactionLogs();
+                } else {
+                    showNotification(`Ошибка: ${result.message || 'Неизвестная ошибка'}`, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка при защите клетки:', error);
+                showNotification('Произошла ошибка при защите клетки', 'error');
+            });
+            
+            // Закрываем модальное окно
+            const modal = bootstrap.Modal.getInstance(document.getElementById('defendCellModal'));
+            modal.hide();
+        });
+    }
+    
+    // Инициализация при загрузке страницы
+    document.addEventListener('DOMContentLoaded', function() {
+        // Сначала инициализируем карту
+        initMap();
+        
+        // Затем добавляем обработчики событий
+        initEventListeners();
+        
+        // Инициализируем обработчики событий модальных окон
+        initModalEventListeners();
+        
+        // Обновляем состояние игры через небольшую задержку, чтобы клетки успели создаться
+        setTimeout(function() {
+            // Сначала обновляем всё состояние игры
+            updateGameState();
+            
+            // Устанавливаем интервал обновления таймера хода каждую секунду
+            setInterval(updateTurnTimer, 1000);
+            
+            // Устанавливаем интервал обновления карты и ресурсов каждые 5 секунд
+            setInterval(function() {
+                updateMap();
+                // Проверяем, авторизован ли пользователь перед обновлением ресурсов и логов
+                if (userFactionId) {
+                    updateResources();
+                    updateFactionLogs();
+                }
+            }, 5000);
+        }, 1000);
+    });
+</script>
+{% endblock %} 
