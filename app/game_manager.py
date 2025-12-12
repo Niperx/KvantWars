@@ -13,7 +13,7 @@ from app.models.faction_log import FactionLog
 
 class GameManager:
     _instance = None
-    TURN_DURATION = 30  # длительность хода в секундах
+    TURN_DURATION = 60  # длительность хода в секундах
     
     def __init__(self):
         self.turn_start_time = None
