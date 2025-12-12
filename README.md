@@ -1,9 +1,8 @@
-[//]: # (### Вариант 1)
+[//]: # (### Прототип)
+[//]: # (<a href="https://imgbb.com/"><img src="https://i.ibb.co/KpH8bX9s/image-2025-03-03-14-50-42.png" alt="image-2025-03-03-14-50-42" border="0"></a>)
 
-[//]: # (<a href="https://imgbb.com/"><img src="https://i.ibb.co/5X1xnpS5/photo-2025-03-03-14-45-41.jpg" alt="photo-2025-03-03-14-45-41" border="0"></a>)
-[//]: # (### Вариант 1)
-
-<a href="https://imgbb.com/"><img src="https://i.ibb.co/KpH8bX9s/image-2025-03-03-14-50-42.png" alt="image-2025-03-03-14-50-42" border="0"></a>
+[//]: # (### Релиз)
+<a href="https://ibb.co/QjmCZXmh"><img src="https://i.ibb.co/x85fy35w/kvantwars.png" alt="kvantwars" border="0"></a>
 
 # Проект KvantWars
 
@@ -38,7 +37,7 @@
      - Отправить ресурсы другой фракции
 
 4. Логи
-   У фракции есть возможность отслеживать что они сделали в этом ходу
+   - У фракции есть возможность отслеживать что они сделали в этом ходу
 
 ## Игра
 ### Игровой процесс
